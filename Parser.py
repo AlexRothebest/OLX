@@ -5,11 +5,17 @@ from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.proxy import Proxy, ProxyType
 
+import requests
+
+from bs4 import BeautifulSoup as bs
+
+import sqlite3
+
 from datetime import datetime
 
 import time
 
-import sqlite3
+from random import randint
 
 
 def write_sql(data):
@@ -51,8 +57,20 @@ def write_sql(data):
     db.close()
 
 
+def get_html(url):
+    global good_proxies
+
+    proxies = good_proxies[randint(0, len(good_proxies) - 1)]
+
+    return requests.get(url, proxies = proxies).text
+
+
+def get_html_proxy(url, proxies = {}):
+    return requests.get(url, proxies = proxies, timeout = 1).text
+
+
 def parse_place(driver, url):
-    url = 'http://besplatka.ua/obyavlenie/arenda-doma-shale-kottedzha-f3d173'
+    #url = 'http://besplatka.ua/obyavlenie/arenda-doma-shale-kottedzha-f3d173'
     ip_url = 'http://icanhazip.com'
 
     prox = Proxy()
@@ -102,13 +120,58 @@ def parse_place(driver, url):
     }
     print(name)
     print(chars)
-'''
-title = driver.execute_script("return document.getElementById('offerdescription').getElementsByTagName('h1')[0].innerText")
-description = driver.find_element_by_id('textContent').text.strip()
-category = driver.find_element_by_id('breadcrumbTop').find_elements_by_tag_name('td')[1]\
-                 .find_elements_by_tag_name('li')[-1].find_elements_by_tag_name('span')[-1].text.strip()
-name = driver.execute_script("return document.getElementsByClassName('offer-user__details')[0].getElementsByTagName('a')[0].innerText.trim()")
-price = driver.find_element_by_class_name('price-label').text.strip()
 
-print(description)
-'''
+
+def check_proxy(proxies, proxy):
+    global good_proxies, file
+
+    start_time = datetime.now()
+    try:
+        html = get_html_proxy('https://icanhazip.com', proxies).strip()
+        print(f'HTML: {html} {proxy} {(datetime.now() - start_time).seconds}\n\n')
+        if 0 < len(html) < 25:
+            good_proxies.append(proxies)
+            file.write(f'{proxy} {(datetime.now() - start_time).seconds}\n')
+            file.close()
+            file = open('Proxies list.txt', 'a')
+    except:
+        pass
+
+
+def check_all_proxies(proxies_list):
+    for proxies in proxies_list:
+        proxy = proxies['https'][8:]
+        print(proxy)
+        thread = Thread(target = check_proxy, args = (proxies, proxy,))
+        thread.start()
+        time.sleep(0.1)
+        #check_proxy(proxies)
+
+
+def search_awmproxy():
+    base_url = 'https://awmproxy.net/freeproxy_eca7bb3bbb457e2.txt'
+
+    proxies_list = [{
+        'http': f'http://{proxy}',
+        'https': f'https://{proxy}'
+    } for proxy in get_html_proxy(base_url).split('\n')]
+
+    print(f'Proxies found: {len(proxies_list)}\n')
+
+    check_all_proxies(proxies_list)
+
+
+file = open('Proxies list.txt', 'w')
+
+good_proxies = []
+
+search_awmproxy()
+
+file.close()
+
+for page_number in range(500):
+    url = f'https://besplatka.ua/kiev/nedvizhimost/page/{page_number}'
+    html = get_html(url)
+    soup = bs(html, 'html.parser')
+    links = ['https://besplatka.ua' + a.get('href') for a in soup.find_all('a', class_ = 'm-title')]
+    print('\n'.join(links))
