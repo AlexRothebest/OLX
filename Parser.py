@@ -22,74 +22,6 @@ import xml.dom.minidom as minidom
 import json
 
 
-def get_html_proxy(url, proxies = {}):
-    return requests.get(url, proxies = proxies, timeout = 7).text
-
-
-def check_proxy(proxies, proxy):
-    global good_proxies, proxy_file
-
-    start_time = datetime.now()
-    try:
-        html = get_html_proxy('https://icanhazip.com', proxies).strip()
-        print(f'\nHTML: {html}\nProxy: {proxy}\nTime: {(datetime.now() - start_time).seconds}\n\n')
-        if 0 < len(html) < 25:
-            good_proxies.append(proxies)
-            #proxy_file.write(f'{proxy} {(datetime.now() - start_time).seconds}\n')
-            proxy_file.write(proxy + '\n')
-            if randint(1, 3) == 3:
-                proxy_file.close()
-                proxy_file = open('Proxies list.txt', 'a')
-    except:
-        pass
-
-
-def check_all_proxies(proxies_list):
-    for proxies in proxies_list:
-        proxy = proxies['https'][8:]
-        print(proxy)
-        thread = Thread(target = check_proxy, args = (proxies, proxy,))
-        thread.start()
-        time.sleep(0.1)
-        #check_proxy(proxies)
-
-
-def search_awmproxy():
-    base_url = 'https://awmproxy.net/freeproxy_f9eaf332c06d374.txt'
-
-    proxies_list = [{
-        'http': f'http://{proxy}',
-        'https': f'https://{proxy}'
-    } for proxy in get_html_proxy(base_url).split('\n')]
-
-    print(f'Proxies found: {len(proxies_list)}\n')
-
-    check_all_proxies(proxies_list)
-
-
-proxy_file = open('Proxies list.txt', 'w')
-
-good_proxies = []
-
-#thread = Thread(target = search_awmproxy, args = ())
-#thread.start()
-search_awmproxy()
-
-time.sleep(10)
-
-proxy_file.close()
-
-print(len(good_proxies))
-
-#g = 1 / 0
-
-
-############################################################################################################################################################
-############################################################################################################################################################
-############################################################################################################################################################
-############################################################################################################################################################
-############################################################################################################################################################
-
 class Parser():
     def reload(self):
         global good_proxies_for_selenium
@@ -194,48 +126,96 @@ class Parser():
         time.sleep(1)
 
 
-def get_html(url):
-    global good_proxies
-
-    def get_response():
-        global good_proxies
-        nonlocal response, url
-
-        try:
-            proxies = good_proxies[randint(0, len(good_proxies) - 1)]
-
-            response_local = requests.get(url, proxies = proxies)
-            if response_local.status_code == 200:
-                response = response_local
-        except:
-            print(f'Error...( {url}')
-
-    response = None
-    while response is None:
-        thread = Thread(target = get_response, args = ())
-        thread.start()
-        time.sleep(1)
-
-    return response.text
-
-
 #parse_place_phone('https://www.olx.ua/obyavlenie/sdam-dvuhkomnatnuyu-obolon-metro-minskaya-IDGomPt.html')
 #a = 1 / 0
 
 
-def parse_place(url, city = 'Харьков'):
-    global data_list, links_list
+############################################################################################################################################################
+############################################################################################################################################################
+############################################################################################################################################################
+############################################################################################################################################################
+############################################################################################################################################################
+
+def get_html(url):
+    global good_proxies
+
+    while True:
+        try:
+            proxies = good_proxies[randint(0, len(good_proxies) - 1)]
+
+            response_local = requests.get(url, proxies = proxies, timeout = 7)
+            if response_local.status_code == 200:
+                response = response_local
+                break
+        except:
+            #pass
+            print(f'Error...( {url}')
+
+    return response.text
+
+
+def parse_seller(url):
+    global all_sellers
+
+    html = get_html(url)
+    soup = bs(html, 'html.parser')
+
+    phone = soup.find('div', {'data-icon': 'phone'}).text.strip().replace('\n', ', ')
+    city = soup.find('address', {'data-icon': 'location-filled'}).find_all('span')[-1].text.strip()
+
+    try:
+        number_of_pages = int(soup.find('div', class_ = 'pager').find_all('span', class_ = 'item')[-1].a.text.strip())
+    except:
+        number_of_pages = 1
+
+    #number_of_pages = 1
+
+    seller_links = [h3.a.get('href') for h3 in soup.find_all('h3', class_ = 'x-large')]
+    print(f'Phone: {phone}\nPages: {number_of_pages}')
+    for page_number in range(2, number_of_pages + 1):
+        page_url = f'{url}/shop/?page={page_number}'
+
+        html = get_html(page_url)
+        soup = bs(html, 'html.parser')
+
+        for h3 in soup.find_all('h3', class_ = 'x-large'):
+            seller_links.append(h3.a.get('href'))
+
+    print(f'Phone: {phone}\nPages: {number_of_pages}\nLinks: {seller_links}')
+
+    all_sellers[url] = [phone, city, seller_links]
+
+    return phone
+
+
+def parse_place(url, city, phone = ''):
+    global data_list, links_list, all_sellers
 
     try:
         html = get_html(url)
-        #html = requests.get(url).text
-
+        while len(html) < 10000:
+            html = get_html(url)
         soup = bs(html, 'html.parser')
 
         title = soup.find('div', class_ = 'offer-titlebox').h1.text.strip()
+        print(f'HTML received for {title}' + '&' * 200)
         description = soup.find('div', {'id': 'textContent'}).text.strip()
         category = soup.find('td', class_ = 'middle').find_all('li')[-1].a.span.text.strip()
         name = soup.find('div', class_ = 'offer-user__details').h4.a.text.strip()
+
+        if phone == '':
+            seller_link = soup.find('div', class_ = 'offer-user__details').h4.a.get('href')
+            try:
+                phone = all_sellers[seller_link]
+            except:
+                #print(f'Name: {name}\nSeller link: {seller_link}')
+                if seller_link[-7:] == '.olx.ua':
+                    print('Good seller was found')
+                    phone = parse_seller(seller_link)
+                    #all_sellers.append(seller_link)
+                else:
+                    print('NO phone number(((\n\n')
+                    return
 
         price = soup.find('div', class_ = 'price-label').strong.text.strip()
         if price.find('грн') != -1:
@@ -276,51 +256,24 @@ def parse_place(url, city = 'Харьков'):
             'city': city,
             'countryid': 'UKR',
             'country': 'Ukraine',
-            'phone': '',
+            'phone': phone,
             'images': photos,
             'datetime': post_datetime,
             'customs': chars,
             'customs_str': chars_str
         }
 
-        print(title + '\n')
-    except:
+        print(title + '\n\n')
+    except Exception as e:
+        print('Error on parsing\n\n')
+
+        with open('Error HTML.html', 'w', encoding = 'UTF-8') as file:
+            file.write(html)
+
+        raise e
+
         if len(links_list) < 100000:
             links_list.append([url, city])
-
-
-def parse_page(url, city = 'Харьков'):
-    global data_list, all_data_urls, unsuccess_urls
-
-    #print(url)
-
-    #html = get_html(url)
-    html = requests.get(url).text
-
-    soup = bs(html, 'html.parser')
-
-    urls_list = []
-    for a in soup.find_all('a', class_ = 'detailsLink'):
-        if 'marginright5' in  a.attrs['class']:
-            urls_list.append(a.get('href'))
-
-    if len(urls_list) != 44:
-        unsuccess_urls[url] = len(urls_list)
-
-    for url in urls_list:
-        if url not in all_data_urls:
-            all_data_urls.append(f'{url}-{city}')
-            print(f'{url}-{city}')
-
-
-def parse_category(url, city = 'Харьков'):
-    for page_number in range(1, 501):
-        page_url = f'{url}?page={page_number}'
-        print(url)
-        print(page_number)
-        thread = Thread(target = parse_page, args = (page_url, city,))
-        thread.start()
-        time.sleep(0.1)
 
 
 def write_to_xml(data):
@@ -382,50 +335,38 @@ def write_to_xml(data):
         file.write(minidom.parseString(str(xml.tostring(yml))[2 : -1]).toprettyxml()[: -1].replace('&lt;', '<').replace('&gt;', '>').replace('&quot', '"'))
 
 
-'''
-url = 'https://www.olx.ua/obyavlenie/sdam-svoyu-2-h-komn-kv-s-m-studencheskaya-4-min-IDDgNc3.html'
-with open('OLX.html', 'w', encoding = 'UTF-8') as file:
-    file.write(get_html(url))
-
-d = 1 / 0
-'''
-'''
-with open('Data.json', 'r', encoding = 'UTF-8') as file:
-    data = json.loads(file.read())
-
-print(data)
-
-c = 1 / 0
-'''
-
-with open('Proxies list.txt', 'r', encoding = 'UTF-8') as file:
+with open('Proxy list.txt', 'r', encoding = 'UTF-8') as file:
     good_proxies = [{
         'http': f'http://{proxy}',
         'https': f'https://{proxy}'
     } for proxy in file.read().split('\n')]
 
 
-with open('Proxies list 3.txt', 'r', encoding = 'UTF-8') as file:
-    good_proxies_for_selenium = file.read().split('\n')
-
+with open('Links 2.txt', 'r', encoding = 'UTF-8') as file:
+    links_list = [[string[:string.rfind('-')], string[string.rfind('-') + 1:]] for string in file.read().split('\n')]
 
 '''
-data_list = {}
-
-url = 'https://www.olx.ua/obyavlenie/prodam-kvartiru-zhk-vorobevy-gory-1-komnatnaya-kvartira-v-rassrochku-IDGodss.html'
-with open('OLX.html', 'w', encoding = 'UTF-8') as file:
-    file.write(get_html(url))
-parse_place(url)
-e = 1 / 0
-'''
-
 with open('Links OLX.txt', 'r', encoding = 'UTF-8') as file:
     links_list = [[string[:string.rfind('-')], string[string.rfind('-') + 1:]] for string in file.read().split('\n')]
 
-print(len(links_list))
+with open('Links.txt', 'r', encoding = 'UTF-8') as file:
+    links_list2 = [[string[:string.rfind('-')], string[string.rfind('-') + 1:]] for string in file.read().split('\n')]
 
+for link_number, link in enumerate(links_list2):
+    if link not in links_list:
+        links_list.append(link)
+        print(f'{link}\n{len(links_list)}/{len(links_list) + link_number}')
+
+with open('Links 2.txt', 'w', encoding = 'UTF-8') as file:
+    file.write('\n'.join('-'.join(link) for link in links_list))
+'''
+
+print(f'Links to parse: {len(links_list)}')
+
+#e = 1 / 0
 
 all_data_urls = []
+all_sellers = {}
 data_list = {}
 unsuccess_urls = {}
 
@@ -433,21 +374,22 @@ for link in links_list:
     print(link)
     thread = Thread(target = parse_place, args = (link[0], link[1],))
     thread.start()
+    #parse_place(link[0], link[1])
     time.sleep(0.1)
-    #try:
-    #    parse_place(link[0], link[1])
-    #except:
-    #    print('Error while parsing...')
-    #    time.sleep(15)
 
-time.sleep(60)
+time.sleep(120)
 
+for seller_url in all_sellers:
+    for url in all_sellers[seller_url][2]:
+        print(f'Seller URL: {url}')
+        thread = Thread(target = parse_place,
+                        args = (url, all_sellers[seller_url][1], all_sellers[seller_url][0]))
+        thread.start()
+        time.sleep(0.1)
+        #parse_place(url, all_sellers[seller_url][1], all_sellers[seller_url][0])
+        #break
 
-print('\n\nStarting parsing phones\n\n' + '$' * 1000)
-
-all_links = [link for link in data_list]
-#parser = Parser()
-
+time.sleep(120)
 
 print('Starting writing to XML')
 write_to_xml(data_list)
@@ -457,29 +399,11 @@ with open('Data.json', 'w', encoding = 'UTF-8') as file:
     file.write(json.dumps(data_list, indent = 4))
     print('*' * 5000)
 
-category_urls = {
-    'https://www.olx.ua/nedvizhimost/kha/': 'Харьков',
-    'https://www.olx.ua/nedvizhimost/ko/': 'Киев',
-    'https://www.olx.ua/nedvizhimost/od/': 'Одесса'
-}
-
-'''
-page_url = 'https://www.olx.ua/nedvizhimost/kha/'
-place_url = 'https://www.olx.ua/obyavlenie/prodam-svoyu-3h-komnatnuyu-kvartiru-IDGpvGh.html'
-
-for category_url in category_urls:
-    parse_category(category_url, category_urls[category_url])
-#parse_page(page_url)
-#parse_place(place_url)
-'''
-
-time.sleep(10)
-
 print(data_list)
 
 print(unsuccess_urls)
 
 print(len(all_data_urls))
 
-with open('Links.txt', 'w', encoding = 'UTF-8') as file:
-    file.write('\n'.join(all_data_urls))
+#with open('Links.txt', 'w', encoding = 'UTF-8') as file:
+#    file.write('\n'.join(all_data_urls))
