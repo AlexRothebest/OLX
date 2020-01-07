@@ -21,6 +21,10 @@ import xml.dom.minidom as minidom
 
 import json
 
+import os
+
+import shutil
+
 
 class Parser():
     def reload(self):
@@ -137,10 +141,14 @@ class Parser():
 ############################################################################################################################################################
 
 def get_html(url):
-    global good_proxies
+    global good_proxies, something_happends
+
+    something_happends = True
 
     while True:
         try:
+            something_happends = True
+
             proxies = good_proxies[randint(0, len(good_proxies) - 1)]
 
             response_local = requests.get(url, proxies = proxies, timeout = 7)
@@ -150,6 +158,8 @@ def get_html(url):
         except:
             #pass
             print(f'Error...( {url}')
+
+    something_happends = False
 
     return response.text
 
@@ -186,6 +196,20 @@ def parse_seller(url):
     all_sellers[url] = [phone, city, seller_links]
 
     return phone
+
+
+def download_images(name, urls):
+    name = name.replace('\ '[0], ' ').replace('/', ' ').replace('?', ' ').replace(':', ' ').replace('|', ' ').replace('!', ' ')\
+               .replace('<', ' ').replace('>', ' ').replace('"', ' ').replace('*', ' ').replace(".", ' ').strip()
+    try:
+        os.mkdir(f'photos/{name}')
+    except:
+        pass
+
+    for image_num, url in enumerate(urls):
+        image_response = requests.get(url, stream = True)
+        with open(f'photos/{name}/image{image_num + 1}.png', 'wb') as image_file:
+            shutil.copyfileobj(image_response.raw, image_file)
 
 
 def parse_place(url, city, phone = ''):
@@ -245,6 +269,8 @@ def parse_place(url, city, phone = ''):
         chars_str = ''
         for prop in chars:
             chars_str += f'{prop}:{chars[prop]};'
+
+        download_images(title, photos)
 
         data_list[url] = {
             'title': title,
@@ -335,6 +361,14 @@ def write_to_xml(data):
         file.write(minidom.parseString(str(xml.tostring(yml))[2 : -1]).toprettyxml()[: -1].replace('&lt;', '<').replace('&gt;', '>').replace('&quot', '"'))
 
 
+try:
+    shutil.rmtree('photos')
+except:
+    pass
+time.sleep(1)
+os.mkdir('photos')
+
+
 with open('Proxy list.txt', 'r', encoding = 'UTF-8') as file:
     good_proxies = [{
         'http': f'http://{proxy}',
@@ -369,8 +403,9 @@ all_data_urls = []
 all_sellers = {}
 data_list = {}
 unsuccess_urls = {}
+something_happends = False
 
-for link in links_list:
+for link in links_list[:10]:
     print(link)
     thread = Thread(target = parse_place, args = (link[0], link[1],))
     thread.start()
@@ -379,17 +414,26 @@ for link in links_list:
 
 time.sleep(120)
 
+while something_happends:
+    time.sleep(30)
+
+all_place_urls = [url for url in data_list]
+
 for seller_url in all_sellers:
     for url in all_sellers[seller_url][2]:
-        print(f'Seller URL: {url}')
-        thread = Thread(target = parse_place,
-                        args = (url, all_sellers[seller_url][1], all_sellers[seller_url][0]))
-        thread.start()
-        time.sleep(0.1)
-        #parse_place(url, all_sellers[seller_url][1], all_sellers[seller_url][0])
-        #break
+        if url not in all_place_urls:
+            print(f'Seller URL: {url}')
+            thread = Thread(target = parse_place,
+                            args = (url, all_sellers[seller_url][1], all_sellers[seller_url][0]))
+            thread.start()
+            time.sleep(0.1)
+            #parse_place(url, all_sellers[seller_url][1], all_sellers[seller_url][0])
+            #break
 
 time.sleep(120)
+
+while something_happends:
+    time.sleep(30)
 
 print('Starting writing to XML')
 write_to_xml(data_list)
