@@ -25,6 +25,14 @@ import os
 
 import shutil
 
+from importlib import import_module
+
+
+try:
+    pass
+    #import_module('Proxy parser.py')
+except:
+    pass
 
 class Parser():
     def reload(self):
@@ -213,7 +221,14 @@ def download_images(name, urls):
 
 
 def parse_place(url, city, phone = ''):
-    global data_list, links_list, all_sellers
+    global data_list, links_list, all_sellers, flags
+
+    if '#' in url:
+        url = url[:url.find('#')]
+
+    flags[url] = False
+
+    name_of_photo_folder = url[url.rfind('/') + 1 : url.rfind('.html')]
 
     try:
         html = get_html(url)
@@ -239,6 +254,7 @@ def parse_place(url, city, phone = ''):
                     #all_sellers.append(seller_link)
                 else:
                     print('NO phone number(((\n\n')
+                    flags[url] = True
                     return
 
         price = soup.find('div', class_ = 'price-label').strong.text.strip()
@@ -262,15 +278,17 @@ def parse_place(url, city, phone = ''):
             prop = td.table.tr.th.text.strip()
             value_list = td.table.tr.td.strong.find_all('a')
             if len(value_list) == 0:
-                chars[prop] = td.table.tr.td.text.strip()
+                chars[prop] = td.table.tr.td.text.replace('м²', '').replace('сот.', '').replace('м²', 'га').strip()
             else:
-                chars[prop] = ', '.join(a.text.strip() for a in value_list)
+                chars[prop] = ', '.join(a.text.replace('м²', '').replace('сот.', '').replace('м²', 'га').strip() for a in value_list)
 
         chars_str = ''
         for prop in chars:
             chars_str += f'{prop}:{chars[prop]};'
 
-        download_images(title, photos)
+        download_images(name_of_photo_folder, photos)
+
+        photos = [f'photos/{name_of_photo_folder}/image{image_number}.jpg' for image_number in range(1, len(photos) + 1)]
 
         data_list[url] = {
             'title': title,
@@ -291,15 +309,19 @@ def parse_place(url, city, phone = ''):
 
         print(title + '\n\n')
     except Exception as e:
+        flags[url] = True
+
         print('Error on parsing\n\n')
 
         with open('Error HTML.html', 'w', encoding = 'UTF-8') as file:
             file.write(html)
 
-        raise e
+        #raise e
 
         if len(links_list) < 100000:
             links_list.append([url, city])
+
+    flags[url] = True
 
 
 def write_to_xml(data):
@@ -404,6 +426,7 @@ all_sellers = {}
 data_list = {}
 unsuccess_urls = {}
 something_happends = False
+flags = {}
 
 for link in links_list[:10]:
     print(link)
@@ -412,12 +435,16 @@ for link in links_list[:10]:
     #parse_place(link[0], link[1])
     time.sleep(0.1)
 
-time.sleep(120)
+time.sleep(60)
 
-while something_happends:
-    time.sleep(30)
+while False in [flags[key] for key in flags]:
+    print(flags)
+    print('Flags are not ready')
+    time.sleep(10)
+
 
 all_place_urls = [url for url in data_list]
+flags = {}
 
 for seller_url in all_sellers:
     for url in all_sellers[seller_url][2]:
@@ -430,10 +457,11 @@ for seller_url in all_sellers:
             #parse_place(url, all_sellers[seller_url][1], all_sellers[seller_url][0])
             #break
 
-time.sleep(120)
+time.sleep(60)
 
-while something_happends:
-    time.sleep(30)
+while False in [flags[key] for key in flags]:
+    print('Flags are not ready (2)')
+    time.sleep(10)
 
 print('Starting writing to XML')
 write_to_xml(data_list)

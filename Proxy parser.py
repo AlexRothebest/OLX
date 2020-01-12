@@ -61,7 +61,7 @@ def check_all_proxy(proxy_list):
 
 
 def search_awmproxy():
-    base_url = 'https://awmproxy.net/freeproxy_8f0dc4442951604.txt'
+    base_url = 'https://awmproxy.net/freeproxy_c52340a975da15e.txt'
 
     proxy_list = [proxy for proxy in get_html_proxy(base_url).split('\n')]
 
