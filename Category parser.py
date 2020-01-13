@@ -22,7 +22,7 @@ def get_html(url):
                 break
         except:
         	#pass
-            print(f'Error...( {url}')
+            print(f'Error... {url}')
 
     return response.text
 
@@ -53,6 +53,8 @@ def parse_category(url, city, number_of_pages, category_index):
 
         pages_statuses[page_index] = True
 
+    #number_of_pages = 1############################################################################
+
     pages_statuses = [False for i in range(number_of_pages)]
     for page_number in range(1, number_of_pages + 1):
         page_url = f'{url}?page={page_number}'
@@ -77,15 +79,7 @@ with open('Perfect proxy list.txt', 'r', encoding = 'UTF-8') as file:
     } for proxy in file.read().split('\n')]
 
 
-category_urls = {
-    'https://www.olx.ua/nedvizhimost/kvartiry-komnaty/kha/q-%D0%BF%D1%80%D0%BE%D0%B4%D0%B0%D0%BC-%D0%BA%D0%B2%D0%B0%D1%80%D1%82%D0%B8%D1%80%D1%83/': ['Харьков', 209],
-    'https://www.olx.ua/nedvizhimost/kvartiry-komnaty/ko/q-%D0%BF%D1%80%D0%BE%D0%B4%D0%B0%D0%BC-%D0%BA%D0%B2%D0%B0%D1%80%D1%82%D0%B8%D1%80%D1%83/': ['Киев', 169],
-    'https://www.olx.ua/nedvizhimost/kvartiry-komnaty/od/q-%D0%BF%D1%80%D0%BE%D0%B4%D0%B0%D0%BC-%D0%BA%D0%B2%D0%B0%D1%80%D1%82%D0%B8%D1%80%D1%83/': ['Одесса', 210],
-    'https://www.olx.ua/nedvizhimost/kvartiry-komnaty/dnp/q-%D0%BF%D1%80%D0%BE%D0%B4%D0%B0%D0%BC-%D0%BA%D0%B2%D0%B0%D1%80%D1%82%D0%B8%D1%80%D1%83/': ['Днепр', 140],
-    'https://www.olx.ua/nedvizhimost/kvartiry-komnaty/don/q-%D0%BF%D1%80%D0%BE%D0%B4%D0%B0%D0%BC-%D0%BA%D0%B2%D0%B0%D1%80%D1%82%D0%B8%D1%80%D1%83/': ['Донецк', 100],
-    'https://www.olx.ua/nedvizhimost/kvartiry-komnaty/zap/q-%D0%BF%D1%80%D0%BE%D0%B4%D0%B0%D0%BC-%D0%BA%D0%B2%D0%B0%D1%80%D1%82%D0%B8%D1%80%D1%83/': ['Запорожье', 50],
-    'https://www.olx.ua/nedvizhimost/kvartiry-komnaty/lv/q-%D0%BF%D1%80%D0%BE%D0%B4%D0%B0%D0%BC-%D0%BA%D0%B2%D0%B0%D1%80%D1%82%D0%B8%D1%80%D1%83/': ['Львов', 20]
-}
+from settings import category_urls
 unsuccess_urls = {}
 all_links_list = []
 categories_statuses = [False for i in category_urls]

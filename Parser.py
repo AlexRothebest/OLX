@@ -25,128 +25,23 @@ import os
 
 import shutil
 
+import copy
+
 from importlib import import_module
 
 
 try:
     pass
-    #import_module('Proxy parser.py')
+    import_module('Proxy parser.py')
 except:
     pass
 
-class Parser():
-    def reload(self):
-        global good_proxies_for_selenium
+try:
+    pass
+    import_module('Category parser.py')
+except:
+    pass
 
-        try:
-            self.driver.quit()
-        except:
-            pass
-
-        proxy = good_proxies_for_selenium[randint(0, len(good_proxies_for_selenium) - 1)]
-
-        prox = Proxy()
-        prox.proxy_type = ProxyType.MANUAL
-        prox.http_proxy = proxy
-        prox.https_proxy = proxy
-        prox.socks4_proxy = proxy
-        prox.ftp_proxy = proxy
-        prox.ssl_proxy = proxy
-        capabilities = webdriver.DesiredCapabilities.CHROME
-        prox.add_to_capabilities(capabilities)
-
-        options = Options()
-        options.add_argument('--headless')
-        user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36'
-        options.add_argument(f'user-agent={user_agent}')
-
-        self.driver = Chrome('chromedriver.exe', options = options, desired_capabilities = capabilities)
-
-    def __init__(self):
-        global all_links
-
-        self.reload()
-
-        while len(all_links) > 0:
-            link = all_links.pop(0)
-
-            try:
-                self.parse_place_phone(link)
-            except:
-                self.reload()
-                #pass
-
-            #self.reload()
-            time.sleep(5)
-
-    def parse_place_phone(self, url):
-        global data_list
-
-        def driver_get(driver, url):
-            driver.get(url)
-
-        driver = self.driver
-
-        #driver.get('https://icanhazip.com')
-        #print(driver.page_source)
-
-        #thread = Thread(target = driver_get, args = (driver, url,))
-        #thread.start()
-        driver.get(url)
-
-        #with open('OLX 3.html', 'w', encoding = 'UTF-8') as file:
-        #    file.write(driver.page_source)
-
-        #time.sleep(1)
-
-        #hover = ActionChains(driver).move_to_element(driver.execute_script('''return document.querySelector("div[data-rel='phone'] strong")'''))
-        #hover.perform()
-
-        #time.sleep(1)
-
-        start_time = datetime.now()
-        clicked = False
-        while (datetime.now() - start_time).seconds < 10:
-            try:
-                driver.execute_script('''document.querySelector("div[data-rel='phone'] strong").click()''')
-                clicked = True
-                break
-            except:
-                time.sleep(0.1)
-                print('ofiojiojjgtrjtjgriitorjgr')
-
-        if not(clicked):
-            f = 1 / 0
-
-        time.sleep(1)
-
-        start_time = datetime.now()
-        while (datetime.now() - start_time).seconds < 10:
-            try:
-                phone = driver.find_element_by_xpath("//div[@data-rel='phone']/strong").text.strip().replace(' ', '').replace('-', '')
-                if phone.find('x') != -1:
-                    b = 1 / 0
-                break
-            except:
-                time.sleep(3)
-                #print('iorjgih')
-
-        print(phone)
-
-        data_list[url]['phone'] = phone
-
-        time.sleep(1)
-
-
-#parse_place_phone('https://www.olx.ua/obyavlenie/sdam-dvuhkomnatnuyu-obolon-metro-minskaya-IDGomPt.html')
-#a = 1 / 0
-
-
-############################################################################################################################################################
-############################################################################################################################################################
-############################################################################################################################################################
-############################################################################################################################################################
-############################################################################################################################################################
 
 def get_html(url):
     global good_proxies, something_happends
@@ -186,7 +81,7 @@ def parse_seller(url):
     except:
         number_of_pages = 1
 
-    #number_of_pages = 1
+    # number_of_pages = 1
 
     seller_links = [h3.a.get('href') for h3 in soup.find_all('h3', class_ = 'x-large')]
     print(f'Phone: {phone}\nPages: {number_of_pages}')
@@ -220,8 +115,8 @@ def download_images(name, urls):
             shutil.copyfileobj(image_response.raw, image_file)
 
 
-def parse_place(url, city, phone = ''):
-    global data_list, links_list, all_sellers, flags
+def parse_place(url, city, parse_without_checking_category, phone = ''):
+    global data_list, links_list, all_sellers, flags, all_categories
 
     if '#' in url:
         url = url[:url.find('#')]
@@ -240,6 +135,12 @@ def parse_place(url, city, phone = ''):
         print(f'HTML received for {title}' + '&' * 200)
         description = soup.find('div', {'id': 'textContent'}).text.strip()
         category = soup.find('td', class_ = 'middle').find_all('li')[-1].a.span.text.strip()
+        if parse_without_checking_category:
+            if category not in all_categories:
+                all_categories.append(category)
+        else:
+            if category not in all_categories:
+                q = 1 / 0
         name = soup.find('div', class_ = 'offer-user__details').h4.a.text.strip()
 
         if phone == '':
@@ -316,7 +217,7 @@ def parse_place(url, city, phone = ''):
         with open('Error HTML.html', 'w', encoding = 'UTF-8') as file:
             file.write(html)
 
-        #raise e
+        raise e
 
         if len(links_list) < 100000:
             links_list.append([url, city])
@@ -327,9 +228,8 @@ def parse_place(url, city, phone = ''):
 def write_to_xml(data):
     yml = xml.Element('yml')
 
-    for url in data:
-        print('dfklgmklfmkfmklfkmgsghmsfmlgkfmhlmhgfm')
-        place = data[url]
+    def write_place_to_yml(place):
+        nonlocal yml
 
         listing = xml.Element('listing')
         yml.append(listing)
@@ -378,9 +278,34 @@ def write_to_xml(data):
         datetime = xml.SubElement(listing, 'datetime')
         datetime.text = place['datetime']
 
+    new_data = data.copy()
+    for url in new_data:
+        for iterations in range(10):
+            print('dfklgmklfmkfmklfkmgsghmsfmlgkfmhlmhgfm')
+            
+            place = new_data[url]
+
+            print(url)
+
+            old_yml = copy.copy(yml)
+
+            try:
+                write_place_to_yml(place)
+                data = xml.tostring(yml, encoding='unicode', method='xml')
+                break
+            except Exception as e:
+                # raise e
+
+                yml = old_yml
+
+    print(f'YML type: {type(yml)}')
+
     with open('XML Data.xml', 'w', encoding = 'UTF-8') as file:
-        print(minidom.parseString(str(xml.tostring(yml))[2 : -1]).toprettyxml()[: -1].replace('&lt;', '<').replace('&gt;', '>'))
-        file.write(minidom.parseString(str(xml.tostring(yml))[2 : -1]).toprettyxml()[: -1].replace('&lt;', '<').replace('&gt;', '>').replace('&quot', '"'))
+        data = minidom.parseString(str(xml.tostring(yml))[2 : -1]).toprettyxml()[: -1].replace('&lt;', '<').replace('&gt;', '>').replace('&quot', '"')
+        print(data)
+        # print(minidom.parseString(str(xml.tostring(yml))[2 : -1]).toprettyxml()[: -1].replace('&lt;', '<').replace('&gt;', '>').replace('&quot', '"'))
+        if len(data) > 1000:
+            file.write(minidom.parseString(str(xml.tostring(yml))[2 : -1]).toprettyxml()[: -1].replace('&lt;', '<').replace('&gt;', '>').replace('&quot', '"'))
 
 
 try:
@@ -391,35 +316,19 @@ time.sleep(1)
 os.mkdir('photos')
 
 
-with open('Proxy list.txt', 'r', encoding = 'UTF-8') as file:
+with open('Perfect proxy list.txt', 'r', encoding = 'UTF-8') as file:
     good_proxies = [{
         'http': f'http://{proxy}',
         'https': f'https://{proxy}'
     } for proxy in file.read().split('\n')]
 
 
-with open('Links 2.txt', 'r', encoding = 'UTF-8') as file:
-    links_list = [[string[:string.rfind('-')], string[string.rfind('-') + 1:]] for string in file.read().split('\n')]
-
-'''
-with open('Links OLX.txt', 'r', encoding = 'UTF-8') as file:
-    links_list = [[string[:string.rfind('-')], string[string.rfind('-') + 1:]] for string in file.read().split('\n')]
-
 with open('Links.txt', 'r', encoding = 'UTF-8') as file:
-    links_list2 = [[string[:string.rfind('-')], string[string.rfind('-') + 1:]] for string in file.read().split('\n')]
+    links_list = [[string[:string.rfind('-')], string[string.rfind('-') + 1:]] for string in file.read().split('\n')]
 
-for link_number, link in enumerate(links_list2):
-    if link not in links_list:
-        links_list.append(link)
-        print(f'{link}\n{len(links_list)}/{len(links_list) + link_number}')
-
-with open('Links 2.txt', 'w', encoding = 'UTF-8') as file:
-    file.write('\n'.join('-'.join(link) for link in links_list))
-'''
+# links_list = links_list[:20]
 
 print(f'Links to parse: {len(links_list)}')
-
-#e = 1 / 0
 
 all_data_urls = []
 all_sellers = {}
@@ -427,39 +336,51 @@ data_list = {}
 unsuccess_urls = {}
 something_happends = False
 flags = {}
+all_categories = []
 
-for link in links_list[:10]:
+write_to_xml(data_list)
+
+# w = 1 / 0
+
+# parse_place('https://www.olx.ua/obyavlenie/1komn-zhk-mira-1-m-maselskogo-r-n-novye-doma-htz-36m2-remont-IDGp5YY.html', 'Kharkov', True)
+# a = 1 / 0
+
+for link in links_list:
     print(link)
-    thread = Thread(target = parse_place, args = (link[0], link[1],))
+    thread = Thread(target = parse_place, args = (link[0], link[1], True,))
     thread.start()
-    #parse_place(link[0], link[1])
     time.sleep(0.1)
 
 time.sleep(60)
 
-while False in [flags[key] for key in flags]:
-    print(flags)
+start_time = datetime.now()
+while False in [flags[key] for key in flags] and (datetime.now() - start_time).seconds < 1000:
     print('Flags are not ready')
+    for key in flags:
+        if not flags[key]:
+            print(key)
+    print((datetime.now() - start_time).seconds)
+    print('\n')
     time.sleep(10)
 
 
 all_place_urls = [url for url in data_list]
 flags = {}
 
-for seller_url in all_sellers:
-    for url in all_sellers[seller_url][2]:
+new_all_sellers = all_sellers.copy()
+for seller_url in new_all_sellers:
+    for url in new_all_sellers[seller_url][2]:
         if url not in all_place_urls:
             print(f'Seller URL: {url}')
             thread = Thread(target = parse_place,
-                            args = (url, all_sellers[seller_url][1], all_sellers[seller_url][0]))
+                            args = (url, new_all_sellers[seller_url][1], False, new_all_sellers[seller_url][0],))
             thread.start()
             time.sleep(0.1)
-            #parse_place(url, all_sellers[seller_url][1], all_sellers[seller_url][0])
-            #break
 
 time.sleep(60)
 
-while False in [flags[key] for key in flags]:
+start_time = datetime.now()
+while False in [flags[key] for key in flags] and (datetime.now() - start_time).seconds < 1000:
     print('Flags are not ready (2)')
     time.sleep(10)
 
@@ -477,5 +398,5 @@ print(unsuccess_urls)
 
 print(len(all_data_urls))
 
-#with open('Links.txt', 'w', encoding = 'UTF-8') as file:
-#    file.write('\n'.join(all_data_urls))
+# with open('Links.txt', 'w', encoding = 'UTF-8') as file:
+#     file.write('\n'.join(all_data_urls))
