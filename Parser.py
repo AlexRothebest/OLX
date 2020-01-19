@@ -29,29 +29,33 @@ import copy
 
 from importlib import import_module
 
-
-try:
-    pass
-    import_module('Proxy parser.py')
-except:
-    pass
-
-try:
-    pass
-    import_module('Category parser.py')
-except:
-    pass
+from tkinter import *
 
 
-def get_html(url):
-    global good_proxies, something_happends
+def create_thread(function, args):
+    global number_of_threads, max_number_of_threads
 
-    something_happends = True
+    # while number_of_threads > max_number_of_threads:
+    #     print(f'Number of threads: {number_of_threads}\n{function} with args: ({args}) is waiting')
+    #     time.sleep(10)
+
+    number_of_threads += 1
+
+    print('Thread created')
 
     while True:
         try:
-            something_happends = True
+            Thread(target = function, args = args).start()
+            break
+        except:
+            time.sleep(3)
 
+
+def get_html(url):
+    global good_proxies
+
+    while True:
+        try:
             proxies = good_proxies[randint(0, len(good_proxies) - 1)]
 
             response_local = requests.get(url, proxies = proxies, timeout = 7)
@@ -59,29 +63,44 @@ def get_html(url):
                 response = response_local
                 break
         except:
-            #pass
-            print(f'Error...( {url}')
-
-    something_happends = False
+            # pass
+            print(f'Error... {url}')
 
     return response.text
 
 
-def parse_seller(url):
+def download_images(name, urls):
+    name = name.replace('\ '[0], ' ').replace('/', ' ').replace('?', ' ').replace(':', ' ').replace('|', ' ').replace('!', ' ')\
+               .replace('<', ' ').replace('>', ' ').replace('"', ' ').replace('*', ' ').replace(".", ' ').strip()
+    try:
+        os.mkdir(f'photos/{name}')
+    except:
+        pass
+
+    for image_num, url in enumerate(urls):
+        image_response = requests.get(url, stream = True)
+        with open(f'photos/{name}/image{image_num + 1}.png', 'wb') as image_file:
+            shutil.copyfileobj(image_response.raw, image_file)
+
+
+def parse_seller(url, sity):
     global all_sellers
 
     html = get_html(url)
     soup = bs(html, 'html.parser')
 
     phone = soup.find('div', {'data-icon': 'phone'}).text.strip().replace('\n', ', ')
-    city = soup.find('address', {'data-icon': 'location-filled'}).find_all('span')[-1].text.strip()
+    try:
+        city = soup.find('address', {'data-icon': 'location-filled'}).find_all('span')[-1].text.strip()
+    except:
+        pass
 
     try:
         number_of_pages = int(soup.find('div', class_ = 'pager').find_all('span', class_ = 'item')[-1].a.text.strip())
     except:
         number_of_pages = 1
 
-    # number_of_pages = 1
+    # number_of_pages = 1######################################################################
 
     seller_links = [h3.a.get('href') for h3 in soup.find_all('h3', class_ = 'x-large')]
     print(f'Phone: {phone}\nPages: {number_of_pages}')
@@ -101,31 +120,17 @@ def parse_seller(url):
     return phone
 
 
-def download_images(name, urls):
-    name = name.replace('\ '[0], ' ').replace('/', ' ').replace('?', ' ').replace(':', ' ').replace('|', ' ').replace('!', ' ')\
-               .replace('<', ' ').replace('>', ' ').replace('"', ' ').replace('*', ' ').replace(".", ' ').strip()
-    try:
-        os.mkdir(f'photos/{name}')
-    except:
-        pass
-
-    for image_num, url in enumerate(urls):
-        image_response = requests.get(url, stream = True)
-        with open(f'photos/{name}/image{image_num + 1}.png', 'wb') as image_file:
-            shutil.copyfileobj(image_response.raw, image_file)
-
-
 def parse_place(url, city, parse_without_checking_category, phone = ''):
-    global data_list, links_list, all_sellers, flags, all_categories
-
-    if '#' in url:
-        url = url[:url.find('#')]
-
-    flags[url] = False
-
-    name_of_photo_folder = url[url.rfind('/') + 1 : url.rfind('.html')]
+    global data_list, links_list, all_sellers, flags, all_categories, number_of_threads
 
     try:
+        if '#' in url:
+            url = url[:url.find('#')]
+
+        flags[url] = False
+
+        name_of_photo_folder = url[url.rfind('/') + 1 : url.rfind('.html')]
+
         html = get_html(url)
         while len(html) < 10000:
             html = get_html(url)
@@ -143,20 +148,20 @@ def parse_place(url, city, parse_without_checking_category, phone = ''):
                 q = 1 / 0
         name = soup.find('div', class_ = 'offer-user__details').h4.a.text.strip()
 
-        if phone == '':
-            seller_link = soup.find('div', class_ = 'offer-user__details').h4.a.get('href')
-            try:
-                phone = all_sellers[seller_link]
-            except:
-                #print(f'Name: {name}\nSeller link: {seller_link}')
-                if seller_link[-7:] == '.olx.ua':
-                    print('Good seller was found')
-                    phone = parse_seller(seller_link)
-                    #all_sellers.append(seller_link)
-                else:
-                    print('NO phone number(((\n\n')
-                    flags[url] = True
-                    return
+        # if phone == '':
+        #     seller_link = soup.find('div', class_ = 'offer-user__details').h4.a.get('href')
+        #     try:
+        #         phone = all_sellers[seller_link]
+        #     except:
+        #         #print(f'Name: {name}\nSeller link: {seller_link}')
+        #         if seller_link[-7:] == '.olx.ua':
+        #             print('Good seller was found')
+        #             phone = parse_seller(seller_link, city)
+        #             #all_sellers.append(seller_link)
+        #         else:
+        #             print('NO phone number(((\n\n')
+        #             flags[url] = True
+        #             return
 
         price = soup.find('div', class_ = 'price-label').strong.text.strip()
         if price.find('грн') != -1:
@@ -192,6 +197,7 @@ def parse_place(url, city, parse_without_checking_category, phone = ''):
         photos = [f'photos/{name_of_photo_folder}/image{image_number}.jpg' for image_number in range(1, len(photos) + 1)]
 
         data_list[url] = {
+            'url': url,
             'title': title,
             'description': description,
             'category': category,
@@ -208,21 +214,21 @@ def parse_place(url, city, parse_without_checking_category, phone = ''):
             'customs_str': chars_str
         }
 
-        print(title + '\n\n')
+        print(f'Parsed: {title}\n\n')
     except Exception as e:
-        flags[url] = True
-
         print('Error on parsing\n\n')
 
-        with open('Error HTML.html', 'w', encoding = 'UTF-8') as file:
-            file.write(html)
+        # with open('Error HTML.html', 'w', encoding = 'UTF-8') as file:
+        #     file.write(html)
 
-        raise e
+        # raise e
 
         if len(links_list) < 100000:
             links_list.append([url, city])
 
     flags[url] = True
+
+    number_of_threads -= 1
 
 
 def write_to_xml(data):
@@ -233,6 +239,9 @@ def write_to_xml(data):
 
         listing = xml.Element('listing')
         yml.append(listing)
+
+        xml_url = xml.SubElement(listing, 'url')
+        xml_url.text = place['url']
 
         title = xml.SubElement(listing, 'title', lang = 'ru_RU')
         title.text = f"<![CDATA[{place['title']}]]>"
@@ -264,8 +273,8 @@ def write_to_xml(data):
         country = xml.SubElement(listing, 'country')
         country.text = place['country']
 
-        telfon = xml.SubElement(listing, 'telfon')
-        telfon.text = place['phone']
+        # telfon = xml.SubElement(listing, 'telfon')
+        # telfon.text = place['phone']
 
         for photo in place['images']:
             image = xml.SubElement(listing, 'image')
@@ -291,7 +300,7 @@ def write_to_xml(data):
 
             try:
                 write_place_to_yml(place)
-                data = xml.tostring(yml, encoding='unicode', method='xml')
+                data = xml.tostring(yml, encoding = 'UTf-8', method = 'xml')
                 break
             except Exception as e:
                 # raise e
@@ -306,14 +315,6 @@ def write_to_xml(data):
         # print(minidom.parseString(str(xml.tostring(yml))[2 : -1]).toprettyxml()[: -1].replace('&lt;', '<').replace('&gt;', '>').replace('&quot', '"'))
         if len(data) > 1000:
             file.write(minidom.parseString(str(xml.tostring(yml))[2 : -1]).toprettyxml()[: -1].replace('&lt;', '<').replace('&gt;', '>').replace('&quot', '"'))
-
-
-try:
-    shutil.rmtree('photos')
-except:
-    pass
-time.sleep(1)
-os.mkdir('photos')
 
 
 with open('Perfect proxy list.txt', 'r', encoding = 'UTF-8') as file:
@@ -334,69 +335,130 @@ all_data_urls = []
 all_sellers = {}
 data_list = {}
 unsuccess_urls = {}
-something_happends = False
 flags = {}
 all_categories = []
+number_of_threads = 0
+max_number_of_threads = 100
 
-write_to_xml(data_list)
+# write_to_xml(data_list)
 
 # w = 1 / 0
 
 # parse_place('https://www.olx.ua/obyavlenie/1komn-zhk-mira-1-m-maselskogo-r-n-novye-doma-htz-36m2-remont-IDGp5YY.html', 'Kharkov', True)
 # a = 1 / 0
 
-for link in links_list:
-    print(link)
-    thread = Thread(target = parse_place, args = (link[0], link[1], True,))
-    thread.start()
-    time.sleep(0.1)
 
-time.sleep(60)
+def parse(event = None):
+    global all_data_urls, all_sellers, data_list, unsuccess_urls, flags, all_categories
 
-start_time = datetime.now()
-while False in [flags[key] for key in flags] and (datetime.now() - start_time).seconds < 1000:
-    print('Flags are not ready')
-    for key in flags:
-        if not flags[key]:
-            print(key)
-    print((datetime.now() - start_time).seconds)
-    print('\n')
-    time.sleep(10)
+    try:
+        shutil.rmtree('photos')
+    except:
+        pass
+    time.sleep(1)
+    os.mkdir('photos')
+
+    try:
+        pass
+        import_module('Proxy parser.py')#################################################
+    except:
+        pass
+
+    try:
+        pass
+        import_module('Category parser.py')
+    except:
+        pass
 
 
-all_place_urls = [url for url in data_list]
-flags = {}
+    print(f'Links: {len(links_list)}')
+    for link in links_list:################################################################
+        print(link)
+        create_thread(parse_place, (link[0], link[1], True,))
+        # thread = Thread(target = parse_place, args = (link[0], link[1], True,))
+        # thread.start()
+        # time.sleep(0.1)
 
-new_all_sellers = all_sellers.copy()
-for seller_url in new_all_sellers:
-    for url in new_all_sellers[seller_url][2]:
-        if url not in all_place_urls:
-            print(f'Seller URL: {url}')
-            thread = Thread(target = parse_place,
-                            args = (url, new_all_sellers[seller_url][1], False, new_all_sellers[seller_url][0],))
-            thread.start()
-            time.sleep(0.1)
+    time.sleep(60)
 
-time.sleep(60)
+    start_time = datetime.now()
+    while False in [flags[key] for key in flags] and (datetime.now() - start_time).seconds < 1200:
+        print('Flags are not ready')
+        for key in flags:
+            if not flags[key]:
+                print(f'Not ready place flag: {key}')
+        print(f'Seconds left from start: {(datetime.now() - start_time).seconds}')
+        print('\n')
+        time.sleep(10)
 
-start_time = datetime.now()
-while False in [flags[key] for key in flags] and (datetime.now() - start_time).seconds < 1000:
-    print('Flags are not ready (2)')
-    time.sleep(10)
 
-print('Starting writing to XML')
-write_to_xml(data_list)
-print('Writed')
+    all_place_urls = [url for url in data_list]
+    flags = {}
 
-with open('Data.json', 'w', encoding = 'UTF-8') as file:
-    file.write(json.dumps(data_list, indent = 4))
-    print('*' * 5000)
+    new_all_sellers = all_sellers.copy()
+    for seller_url in new_all_sellers:
+        for url in new_all_sellers[seller_url][2]:
+            if url not in all_place_urls:
+                print(f'Seller URL: {url}')
+                create_thread(parse_place, (url, new_all_sellers[seller_url][1], False, new_all_sellers[seller_url][0],))
+                # thread = Thread(target = parse_place,
+                #                 args = (url, new_all_sellers[seller_url][1], False, new_all_sellers[seller_url][0],))
+                # thread.start()
+                # time.sleep(0.1)
 
-print(data_list)
+    time.sleep(60)
 
-print(unsuccess_urls)
+    start_time = datetime.now()
+    while False in [flags[key] for key in flags] and (datetime.now() - start_time).seconds < 1200:
+        print('Flags are not ready (2)')
+        for key in flags:
+            if not flags[key]:
+                print(f'Not ready place flag: {key}')
+        print(f'Seconds left from start: {(datetime.now() - start_time).seconds}')
+        print('\n')
+        time.sleep(10)
 
-print(len(all_data_urls))
+    print('Starting writing to XML')
+    write_to_xml(data_list)
+    print('Writed')
 
-# with open('Links.txt', 'w', encoding = 'UTF-8') as file:
-#     file.write('\n'.join(all_data_urls))
+    with open('Data.json', 'w', encoding = 'UTF-8') as file:
+        file.write(json.dumps(data_list, indent = 4))
+        print('*' * 5000)
+
+    print(data_list)
+
+    print(unsuccess_urls)
+
+    print(len(all_data_urls))
+
+    # with open('Links.txt', 'w', encoding = 'UTF-8') as file:
+    #     file.write('\n'.join(all_data_urls))
+
+
+# parse()
+# a = 1 / 0
+
+root = Tk()
+root.title('OLX parser')
+root.minsize(420, 240)
+
+Label(root, text = 'Имя файла с данными:').place(x = 50, y = 30)
+
+default_filename = StringVar()
+default_filename.set('Data')
+filename_field = Entry(root, textvariable = default_filename, width = 30)
+filename_field.place(x = 190, y = 30)
+
+start_button = Button(root, text = 'Начать парсинг', width = 20, height = 2)
+start_button.bind('<Button-1>', lambda event: create_thread(parse, ()))
+start_button.place(x = 130, y = 70)
+
+save_button = Button(root, text = 'Занести уже собранные\nданные в файл', width = 25, height = 2)
+save_button.bind('<Button-1>', lambda event: create_thread(write_to_xml, (data_list,)))
+save_button.place(x = 113, y = 130)
+
+# quantity_label = Label(root, text = 'Собрано товаров: 0')
+# quantity_label.place(x = 130, y = 195)
+
+mainloop()
